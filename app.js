@@ -1,15 +1,13 @@
 const app=document.querySelector('#app');
-const STORE='just-one-more-meeting-v21';
+const STORE='escape-the-christmas-meeting-v1';
 const DEFAULT={step:'start',meeting:1023,wrong:null};
 let state=load();
 function load(){try{return {...DEFAULT,...JSON.parse(localStorage.getItem(STORE)||'{}')}}catch{return {...DEFAULT}}}
 function save(){try{localStorage.setItem(STORE,JSON.stringify(state))}catch{}}
 function fmt(m){return `${String(Math.floor(m/60)).padStart(2,'0')}:${String(m%60).padStart(2,'0')}`}
 function partyState(m){if(m<=1031)return 1;if(m<=1044)return 2;if(m<=1059)return 3;return 4}
-function debugTime(){const p=new URLSearchParams(location.search).get('time');if(!p)return null;const r=/^(\d{1,2}):(\d{2})$/.exec(p);return r?Number(r[1])*60+Number(r[2]):null}
-function effectiveTime(){return debugTime()??state.meeting}
-function scene(){const f=partyState(effectiveTime());return `<section class="scene"><div class="stage"><img src="assets/scene-f${f}.png" alt="Meetingraum mit vier Personen und Blick auf die Weihnachtsfeier, Zustand ${f}"></div></section>`}
-function top(){const t=effectiveTime();return `<header class="topbar"><span>${fmt(t)} Uhr</span><span>Weihnachtsfeier seit ${t-1020} Min.</span></header>`}
+function scene(){const f=partyState(state.meeting);return `<section class="scene"><div class="stage"><img src="assets/scene-f${f}.png" alt="Meetingraum mit vier Personen und Blick auf die Weihnachtsfeier, Zustand ${f}"></div></section>`}
+function top(){const t=state.meeting;return `<header class="topbar"><span>${fmt(t)} Uhr</span><span>Weihnachtsfeier seit ${t-1020} Min.</span></header>`}
 function button(label,attr){return `<div class="btnrow"><button class="btn" ${attr}>${label}</button></div>`}
 
 // Station 1
@@ -188,7 +186,6 @@ if(state.step==='s8question'){s8Init();const st=s8Steps[state.s8.index];html+=`<
 if(state.step==='s8feedback'){s8Init();const st=s8Steps[state.s8.index],opt=st.options[state.s8.answers[state.s8.index]];html+=`${opt.penalty?`<div class="penalty">+${opt.penalty} Min.</div>`:''}<section class="work"><div class="eyebrow">${st.title} · Rückmeldung</div><div class="result"><strong>${opt.penalty===0?'Tragfähige Konfiguration':'Konfigurationsrisiko'}</strong><p>${opt.why}</p></div>${button(state.s8.index<s8Steps.length-1?'Nächsten Baustein konfigurieren':'Agent prüfen','data-s8-next')}</section>`}
 if(state.step==='s8result'){const pen=s8TotalPenalty();html+=`<section class="work"><div class="eyebrow">Spezialisierter Protokollprüfer · Konfiguration</div><div class="agent-blueprint"><article><span>1</span><div><strong>Instructions</strong><p>Aktualität, Evidenzgrad, Informationstyp und offene Punkte nach einem festen Schema prüfen.</p></div></article><article><span>2</span><div><strong>Aktuelle Wissensquelle</strong><p>Gepflegter Projektbereich mit freigegebenen Dateien und klarer Versionierung.</p></div></article><article><span>3</span><div><strong>Prüfschema</strong><p>Quelle, Zeitstand und Evidenzgrad je Aussage; Abweichungen und fehlende Belege separat.</p></div></article><article><span>4</span><div><strong>Userbasierte Berechtigungen</strong><p>Zugriff gemäß nutzender Person; fehlenden Zugriff transparent anzeigen, nicht interpretieren.</p></div></article></div><div class="result"><strong>Copilot für den Einzelfall, Agent für den wiederkehrenden Prozess.</strong><p>Der spezialisierte Agent ist dann sinnvoll, wenn Ablauf, Qualitätsanforderungen und Wissensquellen wiederkehrend und kontrolliert angewendet werden sollen.</p></div>${pen?`<p class="result-note">In dieser Station sind insgesamt ${pen} Strafminuten entstanden.</p>`:''}${button('Meeting beenden','data-s8-finish')}</section>`}
 if(state.step==='ending'){const e=endingText();html+=`<section class="ending-card"><div class="eyebrow">Meeting beendet · ${fmt(state.meeting)} Uhr</div><h1>${e.title}</h1><p>${e.text}</p><div class="ending-time">${state.meeting-1020} Minuten nach Beginn der Weihnachtsfeier</div><div class="result"><strong>Was das Meeting verlängert hat</strong><p>Nicht Copilot allein, sondern unklare Aussagen, ungeprüfte Evidenz, veraltete Quellen, erzwungene Kategorien, falsche Diagnosen, überladener Kontext und unnötige Neugenerierungen.</p></div>${button('Noch einmal spielen','data-reset')}<div class="credits-link-row"><button class="credits-link" data-credits>Info & Credits</button></div></section>${creditsOverlay()}`;}
- const dt=debugTime();if(dt!==null)html+=`<div class="debug">Debug-Zeit: ${fmt(dt)} · F${partyState(dt)}</div>`;
  app.innerHTML=html+'</div>';bind();
 }
 
