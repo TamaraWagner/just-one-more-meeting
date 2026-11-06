@@ -1,5 +1,5 @@
 const app=document.querySelector('#app');
-const STORE='just-one-more-meeting-v14';
+const STORE='just-one-more-meeting-v16';
 const DEFAULT={step:'start',meeting:1023,wrong:null};
 let state=load();
 function load(){try{return {...DEFAULT,...JSON.parse(localStorage.getItem(STORE)||'{}')}}catch{return {...DEFAULT}}}
@@ -60,6 +60,27 @@ function s4Init(){if(!state.s4)state.s4={index:0,answers:{}}}
 function s4Score(){return s4Cards.reduce((n,it)=>n+(state.s4?.answers?.[it.id]===it.correct),0)}
 function s4Penalty(score){return score===6?0:score===5?2:score>=3?4:6}
 
+const s5Clues={
+ transcript:{label:'Transkript',meta:'16:31 Uhr',body:'„Der Betriebsrat hat noch Rückfragen zum Rollout. Wir erwarten bis Freitag eine Rückmeldung.“',finding:'Rückmeldung angekündigt, finale Freigabe nicht bestätigt.'},
+ chat:{label:'Meeting-Chat',meta:'16:36 Uhr',body:'„Ich habe den aktuellen Entwurf der Freigabe hier abgelegt.“ · BR_Freigabe_Entwurf.docx',finding:'Es wird ausdrücklich ein Entwurf referenziert.'},
+ document:{label:'Dokument',meta:'BR_Freigabe_Entwurf.docx',body:'Status: Entwurf zur internen Abstimmung · Offene Punkte: Datenschutz, Kommunikation, Pilotgruppe · Finale Zustimmung: ausstehend',finding:'Das Dokument selbst bestätigt, dass die finale Zustimmung aussteht.'},
+ local:{label:'Lokale Datei',meta:'Freigabe_final.docx · lokal gespeichert · vor 3 Wochen geändert',body:'Arbeitsversion, nicht zur Weitergabe',finding:'Dateiname „final“ ist kein Beleg. Die Datei ist lokal, älter und eine Arbeitsversion.'},
+ sharepoint:{label:'SharePoint',meta:'Betriebsrat / Rollout',body:'Du hast keinen Zugriff auf diesen Ordner.',finding:'Fehlender Zugriff sagt nichts darüber aus, ob die gesuchte Freigabe dort existiert.'}
+};
+const s5StatusAnswers=[
+ {text:'Die finale Freigabe existiert, Copilot kann aber nicht darauf zugreifen.',penalty:2},
+ {text:'Die finale Freigabe liegt lokal auf dem Laptop.',penalty:3},
+ {text:'Es gibt derzeit nur einen Entwurf und noch keine finale Freigabe.',penalty:0},
+ {text:'Copilot hat offensichtlich mit den falschen Suchbegriffen gesucht.',penalty:3}
+];
+const s5NextAnswers=[
+ {text:'Copilot mit einem ausführlicheren Prompt erneut suchen lassen.',penalty:3},
+ {text:'Den gesperrten SharePoint-Ordner als Beleg für die Freigabe behandeln.',penalty:4},
+ {text:'Im Protokoll festhalten, dass die Freigabe aussteht, und den nächsten Schritt zuweisen.',penalty:0},
+ {text:'Die lokale Datei mit „final“ im Namen in SharePoint hochladen.',penalty:4}
+];
+function s5Init(){if(!state.s5)state.s5={source:null,viewed:[],status:null,next:null}}
+function s5Penalty(){const raw=(s5StatusAnswers[state.s5.status]?.penalty||0)+(s5NextAnswers[state.s5.next]?.penalty||0);return Math.min(raw,6)}
 function render(){
  save();
  if(state.step==='start'){
@@ -88,7 +109,12 @@ function render(){
  if(state.step==='s4intro')html+=`<section class="story"><div class="speaker">Alex</div><div>„Copilot hat das doch schon sortiert.“</div>${button('Sortierung prüfen','data-go="s4question"')}</section>`;
  if(state.step==='s4question'){s4Init();const it=s4Cards[state.s4.index];html+=`<section class="work"><div class="eyebrow">Protokoll reparieren · Eintrag ${state.s4.index+1} von 6</div><div class="quote">${it.text}</div><div class="question">Wohin gehört dieser Eintrag?</div><div class="answers category-answers">${Object.entries(s4Categories).map(([key,label],i)=>`<button class="answer" data-s4-answer="${key}"><span class="num">${i+1}.</span><span class="txt">${label}</span></button>`).join('')}</div></section>`}
  if(state.step==='s4result'){const score=s4Score(),pen=s4Penalty(score);html+=`${pen?`<div class="penalty">+${pen} Min.<br><small>${score} von 6 Einträgen korrekt eingeordnet</small></div>`:''}<section class="work"><div class="eyebrow">Protokoll reparieren · Auflösung</div><div class="classification-results">${s4Cards.map(it=>`<article class="classification-result"><div class="classification-label">${it.correct==='none'?'Rahmenbedingung / Vorgabe':s4Categories[it.correct]}</div><strong>${it.text}</strong><small>${it.explain}</small></article>`).join('')}</div><div class="result"><strong>Gute Strukturierung bedeutet auch, eine unpassende Kategorie nicht zu erzwingen.</strong><p>Nicht jede Entscheidung im Umfeld eines Meetings ist eine Entscheidung des Projektteams. Entscheidend ist auch, wer entschieden hat und welche Bedeutung diese Entscheidung für den betrachteten Kontext hat.</p></div>${button('Weiter','data-s4-finish')}</section>`}
- if(state.step==='s4done')html+=`<section class="story"><div class="speaker">Nina · Projektleitung</div><div>„Gut. Dann fehlt eigentlich nur noch die Betriebsratsfreigabe.“</div>${button('Prototyp neu starten','data-reset')}</section>`;
+ if(state.step==='s4done')html+=`<section class="story"><div class="speaker">Nina · Projektleitung</div><div>„Gut. Dann fehlt eigentlich nur noch die Betriebsratsfreigabe.“</div>${button('Freigabe suchen','data-go="s5intro"')}</section>`;
+if(state.step==='s5intro')html+=`<section class="story"><div class="speaker">Alex</div><div>„Copilot findet keine finale Freigabe. Das kann doch nicht sein.“</div>${button('Hinweise prüfen','data-go="s5research"')}</section>`;
+if(state.step==='s5research'){s5Init();const src=state.s5.source?s5Clues[state.s5.source]:null;html+=`<section class="work"><div class="eyebrow">Warum findet Copilot die finale Freigabe nicht?</div><div class="source-tabs s5-tabs">${Object.entries(s5Clues).map(([key,v])=>`<button class="source-tab ${state.s5.source===key?'active':''}" data-s5-source="${key}">${v.label}${state.s5.viewed.includes(key)?' ✓':''}</button>`).join('')}</div>${src?`<article class="source-document"><div class="source-meta">${src.meta}</div><div class="source-body">${src.body}</div></article>`:`<div class="source-empty">Prüfe die verfügbaren Hinweise. Die Reihenfolge ist dir überlassen.</div>`}<div class="question">Was lässt sich aus den verfügbaren Hinweisen belastbar schließen?</div><div class="answers">${s5StatusAnswers.map((a,i)=>`<button class="answer" data-s5-status="${i}"><span class="num">${i+1}.</span><span class="txt">${a.text}</span></button>`).join('')}</div></section>`}
+if(state.step==='s5next')html+=`<section class="work"><div class="eyebrow">Diagnose · Nächster Schritt</div><div class="quote">Copilot hat keine finale Freigabe gefunden.</div><div class="question">Wie bringt ihr das Meeting jetzt am schnellsten zu Ende?</div><div class="answers">${s5NextAnswers.map((a,i)=>`<button class="answer" data-s5-next="${i}"><span class="num">${i+1}.</span><span class="txt">${a.text}</span></button>`).join('')}</div></section>`;
+if(state.step==='s5result'){const pen=s5Penalty(),okStatus=state.s5.status===2,okNext=state.s5.next===2;html+=`${pen?`<div class="penalty">+${pen} Min.</div>`:''}<section class="work"><div class="eyebrow">Diagnose · Auflösung</div><div class="result"><strong>${okStatus&&okNext?'Keine Freigabe. Genau das wird dokumentiert.':'Fehlendes Ergebnis heißt nicht automatisch Suchproblem.'}</strong><p>Es gibt derzeit nur einen Entwurf. Die finale Zustimmung des Betriebsrats steht aus.</p></div><div class="diagnosis-list">${Object.values(s5Clues).map(v=>`<article class="diagnosis-item"><strong>${v.label}</strong><div>${v.finding}</div></article>`).join('')}</div><div class="result"><strong>Wichtig</strong><p>„Kein Zugriff“ bedeutet nur, dass du den Inhalt nicht sehen kannst. Es beweist weder, dass die gesuchte Information dort liegt, noch dass Copilot sie übergehen müsste.</p><p>Ein längerer Prompt kann keine finale Freigabe finden, die noch nicht erteilt wurde.</p></div>${button('Weiter','data-s5-finish')}</section>`}
+if(state.step==='s5done')html+=`<section class="story"><div class="speaker">Nina · Projektleitung</div><div>„Gut. Dann formulieren wir das noch sauber für das Protokoll.“</div><div class="chat"><strong>Neuer Versuch</strong><br>„Ich gebe Copilot einfach alles, was wir dazu haben.“</div>${button('Prototyp neu starten','data-reset')}</section>`;
  const dt=debugTime();if(dt!==null)html+=`<div class="debug">Debug-Zeit: ${fmt(dt)} · F${partyState(dt)}</div>`;
  app.innerHTML=html+'</div>';bind();
 }
@@ -106,6 +132,6 @@ function bind(){
  document.querySelectorAll('[data-s3-finish]').forEach(b=>b.onclick=()=>{state.meeting+=1;state.step='s3done';render()});
  document.querySelectorAll('[data-s4-answer]').forEach(b=>b.onclick=()=>{s4Init();const it=s4Cards[state.s4.index];state.s4.answers[it.id]=b.dataset.s4Answer;if(state.s4.index<s4Cards.length-1){state.s4.index++;render()}else{const score=s4Score();state.meeting+=s4Penalty(score);state.step='s4result';render()}});
  document.querySelectorAll('[data-s4-finish]').forEach(b=>b.onclick=()=>{state.meeting+=1;state.step='s4done';render()});
- document.querySelectorAll('[data-reset]').forEach(b=>b.onclick=()=>{try{localStorage.removeItem(STORE)}catch{}state={...DEFAULT};render()});
+ document.querySelectorAll('[data-s5-source]').forEach(b=>b.onclick=()=>{s5Init();state.s5.source=b.dataset.s5Source;if(!state.s5.viewed.includes(state.s5.source))state.s5.viewed.push(state.s5.source);render()});document.querySelectorAll('[data-s5-status]').forEach(b=>b.onclick=()=>{s5Init();state.s5.status=Number(b.dataset.s5Status);state.step='s5next';render()});document.querySelectorAll('[data-s5-next]').forEach(b=>b.onclick=()=>{s5Init();state.s5.next=Number(b.dataset.s5Next);state.meeting+=s5Penalty();state.step='s5result';render()});document.querySelectorAll('[data-s5-finish]').forEach(b=>b.onclick=()=>{state.meeting+=1;state.step='s5done';render()});document.querySelectorAll('[data-reset]').forEach(b=>b.onclick=()=>{try{localStorage.removeItem(STORE)}catch{}state={...DEFAULT};render()});
 }
 render();
